@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="utf-8">
+    <title>ECharts</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- 为ECharts准备一个具备大小（宽高）的Dom -->
+    <div id="main" style="height:400px"></div>
+    <a href="pie.html" style="onMouseOut=this.style.color="blue" "><div id="pie">在线总时长一览</div></a>
+    <!-- ECharts单文件引入 -->
+    <script src="http://echarts.baidu.com/build/dist/echarts.js"></script>
+    <script src="ajax.js"></script>
+    <script type="text/javascript">
+        var StartTime = [];
+        var series =[];
+        function formOnload(){
+        //按周日为一周的最后一天计算
+            var date = new Date();
+            var this_day = date.getDay(); //今天是这周的第几天
+            var step_s = -this_day+1; //上周日距离今天的天数（负数表示）
+                if (this_day == 0) {
+                    step_s = -7; // 如果今天是周日
+                }
+            var step_m = 7 - this_day; // 周日距离今天的天数（负数表示）
+            var thisTime = date.getTime();
+            var monday = new Date(thisTime +  step_s * 24 * 3600* 1000);
+
+            //获取一周日期start
+            var this_time = thisTime + step_s*24*3600*1000;
+            var starttime = transferDate(monday); //本周一的日期 （起始日期）
+            var time_arr = [];
+            time_arr.push(starttime);
+            for(var i =0;i<6;i++){
+                this_time += 24*3600*1000;
+                var time = new Date(this_time);
+                time_arr.push(transferDate(time)); 
+            }
+                // console.log(time_arr);  
+                StartTime =time_arr;
+            //一周日期end
+        }
+
+        function transferDate(date) {
+            var yearTemp = date.getYear();
+            var monthTemp = date.getMonth()+1;
+            var dayTemp = date.getDate();
+                if(parseInt(monthTemp) < 10) {
+                    monthTemp = "0" + monthTemp;
+                } 
+         
+                if(parseInt(dayTemp) < 10) {
+                    dayTemp = "0" + dayTemp;
+                }
+            return monthTemp + "-" + dayTemp;
+        }
+
+        formOnload();
+        // console.log(StartTime);//获取到本周所有的日期，格式：05-30 
+
+        //遍历数组有则取值，无则赋0
+     
+        var arr_name=[];
+        var arr_date_new=[];
+        var arr_sum_long_new=[];
+
+        // 测试调用
+        Ajax('get','user_summarize.php',null,function(data){
+            var json = JSON.parse(data);
+            // console.log(json.data.length);//4
+            for(var i = 0;i<json.data.length;i++){
+                var arr_date=[];
+                var arr_sum_long=[];
+                    for(var j = 0;j<json.data[i].length;j++){
+                        arr_name.push(json.data[i][j].nickname);
+                        arr_date.push(json.data[i][j].date);
+                        arr_sum_long.push(json.data[i][j].sum_long);
+                    }
+                arr_date_new.push(arr_date);
+                arr_sum_long_new.push(arr_sum_long);
+            }
+
+            // console.log(arr_date_new);//日期数组
+            // console.log(arr_sum_long_new);//在线时长数组
+
+        //js数组去重
+        Array.prototype.unique = function(){
+            var res = [];
+            var json = {};
+            for(var i= 0;i<this.length;i++){
+                if(!json[this[i]]){
+                    res.push(this[i]);
+                    json[this[i]]=1;
+                }
+            }
+            return res;
+        }
+        arr_name = arr_name.unique();
+
+        //添加元素
+        for(var i = 0;i<json.data.length;i++){
+            for(var j = 0;j<7;j++){
+                var Index = arr_date_new[i].indexOf(StartTime[j]);
+                if(Index==-1){
+                    arr_date_new[i].splice(j,0,StartTime[j]);
+                    arr_sum_long_new[i].splice(j,0,0);//添加0
+                }
+            }
+        }
+   
+        // console.log(arr_date_new);//日期数组
+        // console.log(arr_sum_long_new);//在线时长数组  
+        var series1=[]; //配置option中的series
+            for(var i = 0;i<json.data.length;i++){
+                series1.push({
+                    name: arr_name[i],
+                    type: 'line',
+                    stack: '总量',
+                    data: arr_sum_long_new[i]
+                });
+            } 
+            series = series1;
+
+    }, function(error){
+        console.log(error);
+    }); 
+    // 路径配置
+        require.config({
+            paths: {
+                echarts: 'http://echarts.baidu.com/build/dist'
+            }
+        });      
+
+            // 使用
+        require([
+                'echarts',
+                'echarts/chart/line',
+                'echarts/chart/bar'
+            ],
+        function (ec) {
+            // 基于准备好的dom，初始化echarts图表
+            var myChart = ec.init(document.getElementById('main'));    
+            option = {
+                tooltip : {
+                    trigger: 'axis'
+                },
+                legend: {
+                        data:arr_name
+
+                },
+                toolbox: {
+                    show : true,
+                    feature : {
+                        mark : {show: true},
+                        dataView : {show: true, readOnly: false},
+                        magicType : {show: true, type: ['line', 'bar', 'stack', 'tiled']},
+                        restore : {show: true},
+                        saveAsImage : {show: true}
+                    }
+                },
+                calculable : true,
+                xAxis : [
+                    {
+                        type : 'category',
+                        boundaryGap : false,
+                        data:StartTime
+
+                    }
+                ],
+                yAxis : [
+                    {
+                        type : 'value'
+                    }
+                ],
+                series:series
+            };      
+            // 为echarts对象加载数据 
+            myChart.setOption(option); 
+        });
+
+    </script>       
+</body>
